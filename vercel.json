@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "functions": {
+    "api/generate.js": {
+      "memory": 1024,
+      "maxDuration": 10,
+      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+    }
+  }
+}

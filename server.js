@@ -2,8 +2,6 @@ const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
 module.exports = async (req, res) => {
-  // Accepter uniquement les requêtes POST
-  // deploie ça tout de suite du con
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
@@ -16,9 +14,11 @@ module.exports = async (req, res) => {
   let browser = null;
 
   try {
-    // Lancer le Chromium compressé adapté à Vercel
+    // Désactiver le mode graphique superflu pour accélérer le démarrage et éviter les crashs Linux
+    chromium.setGraphicsMode = false;
+
     browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, '--disable-gpu', '--no-sandbox'],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
@@ -26,27 +26,26 @@ module.exports = async (req, res) => {
 
     const page = await browser.newPage();
 
-    // Charger l'URL (attend la fin des requêtes réseau)
-    await page.goto(url, { waitUntil: 'networkidle0', timeout: 25000 });
+    // On attend que le DOM soit chargé (plus rapide que networkidle0 pour éviter le timeout de 10s)
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 });
 
-    // Attendre le chargement des polices (KaTeX / LaTeX)
+    // Attendre que les polices soient prêtes
     await page.evaluateHandle('document.fonts.ready');
 
-    // Attendre 1 seconde supplémentaire (pour le rendu des SVGs Mermaid)
-    await new Promise((r) => setTimeout(r, 1000));
-
-    // Générer le vrai PDF vectoriel
+    // Génération du PDF
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '15mm', right: '15mm', bottom: '15mm', left: '15mm' }
+      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
     });
 
-    // Retourner le binaire du PDF
     res.setHeader('Content-Type', 'application/pdf');
-    return res.send(pdf);
+    res.setHeader('Content-Length', pdf.length);
+    // Utiliser .end(buffer) pour éviter que Vercel n'essaie de parser le binaire
+    return res.end(pdf);
 
   } catch (error) {
+    console.error('Erreur Puppeteer:', error);
     return res.status(500).json({ error: error.message });
   } finally {
     if (browser) await browser.close();
