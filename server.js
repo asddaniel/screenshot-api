@@ -1,11 +1,12 @@
-const express = require('express');
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
+
+import express from 'express';
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware indispensable pour parser le JSON envoyé en POST
+// Middleware pour parser le JSON envoyé en POST
 app.use(express.json());
 
 // 1. Route GET : Mode web / vérification
@@ -13,9 +14,10 @@ app.get('/', (req, res) => {
   return res.send('Hello World');
 });
 
-// 2. Route POST : Logique de capture PDF (strictement intacte)
+// 2. Route POST : Génération du PDF
 app.post('/', async (req, res) => {
   const { url } = req.body || {};
+
   if (!url) {
     return res.status(400).json({ error: 'URL manquante' });
   }
@@ -23,7 +25,7 @@ app.post('/', async (req, res) => {
   let browser = null;
 
   try {
-    // Désactiver le mode graphique superflu pour accélérer le démarrage et éviter les crashs Linux
+    // Désactiver le mode graphique superflu
     chromium.setGraphicsMode = false;
 
     browser = await puppeteer.launch({
@@ -35,8 +37,11 @@ app.post('/', async (req, res) => {
 
     const page = await browser.newPage();
 
-    // On attend que le DOM soit chargé (plus rapide que networkidle0 pour éviter le timeout de 10s)
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 8000 });
+    // Attendre le chargement du DOM
+    await page.goto(url, {
+      waitUntil: 'domcontentloaded',
+      timeout: 8000,
+    });
 
     // Attendre que les polices soient prêtes
     await page.evaluateHandle('document.fonts.ready');
@@ -45,19 +50,31 @@ app.post('/', async (req, res) => {
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+      margin: {
+        top: '10mm',
+        right: '10mm',
+        bottom: '10mm',
+        left: '10mm',
+      },
     });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdf.length);
-    // Utiliser .end(buffer) pour éviter que Vercel/Express n'essaie de parser le binaire
+
+    // Envoyer directement le buffer PDF
     return res.end(pdf);
 
   } catch (error) {
     console.error('Erreur Puppeteer:', error);
-    return res.status(500).json({ error: error.message });
+
+    return res.status(500).json({
+      error: error.message,
+    });
+
   } finally {
-    if (browser) await browser.close();
+    if (browser) {
+      await browser.close();
+    }
   }
 });
 
@@ -66,4 +83,4 @@ app.listen(PORT, () => {
   console.log(`Serveur démarré sur le port ${PORT}`);
 });
 
-module.exports = app;
+export default app;
