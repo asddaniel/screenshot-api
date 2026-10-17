@@ -1,10 +1,15 @@
 {
   "version": 2,
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index.js"
+    }
+  ],
   "functions": {
-    "server.js": {
+    "api/index.js": {
       "memory": 1024,
-      "maxDuration": 10,
-      "includeFiles": "node_modules/@sparticuz/chromium/bin/**"
+      "maxDuration": 15
     }
   }
 }
