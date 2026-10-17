@@ -1,4 +1,3 @@
-
 import express from 'express';
 import chromium from '@sparticuz/chromium';
 import puppeteer from 'puppeteer-core';
@@ -6,14 +5,12 @@ import puppeteer from 'puppeteer-core';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
-// 1. Route GET : Test Web
 app.get('/', (req, res) => {
-  return res.send('Hello World');
+  return res.send('Puppeteer PDF Generator Operational');
 });
 
-// 2. Route POST : Capture PDF
 app.post('/', async (req, res) => {
   const { url } = req.body || {};
 
@@ -27,7 +24,14 @@ app.post('/', async (req, res) => {
     chromium.setGraphicsMode = false;
 
     browser = await puppeteer.launch({
-      args: [...chromium.args, '--disable-gpu', '--no-sandbox'],
+      args: [
+        ...chromium.args,
+        '--disable-gpu',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--font-render-hinting=none',
+      ],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
@@ -35,21 +39,33 @@ app.post('/', async (req, res) => {
 
     const page = await browser.newPage();
 
+    // 1. Émulation du média d'impression pour activer les règles @media print
+    await page.emulateMediaType('print');
+
+    // 2. Navigation avec timeout suffisant pour le calcul des formules
     await page.goto(url, {
-      waitUntil: 'domcontentloaded',
-      timeout: 8000,
+      waitUntil: 'networkidle0',
+      timeout: 30000,
     });
 
+    // 3. Attente que toutes les polices web soient chargées
     await page.evaluateHandle('document.fonts.ready');
 
+    // 4. Attente du signal de compilation de KaTeX & Mermaid injecté par la vue Laravel
+    await page.waitForFunction(() => window.__PDF_READY__ === true, {
+      timeout: 25000,
+    });
+
+    // 5. Génération du flux binaire PDF
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
+      preferCSSPageSize: true,
       margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm',
+        top: '12mm',
+        right: '12mm',
+        bottom: '12mm',
+        left: '12mm',
       },
     });
 
@@ -60,11 +76,7 @@ app.post('/', async (req, res) => {
 
   } catch (error) {
     console.error('Erreur Puppeteer:', error);
-
-    return res.status(500).json({
-      error: error.message,
-    });
-
+    return res.status(500).json({ error: error.message });
   } finally {
     if (browser) {
       await browser.close();
@@ -72,12 +84,10 @@ app.post('/', async (req, res) => {
   }
 });
 
-// Ne lancer app.listen qu'en développement local
 if (process.env.NODE_ENV !== 'production') {
   app.listen(PORT, () => {
-    console.log(`Serveur local lancé sur http://localhost:${PORT}`);
+    console.log(`Microservice de capture PDF actif sur http://localhost:${PORT}`);
   });
 }
 
-// Export ESM pour Vercel
 export default app;
