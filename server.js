@@ -3,6 +3,7 @@ const puppeteer = require('puppeteer-core');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') {
+    // "autres branche connard idiot"
     return res.status(405).json({ error: 'Méthode non autorisée' });
   }
 
