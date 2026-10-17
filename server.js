@@ -1,11 +1,20 @@
+const express = require('express');
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 
-module.exports = async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Méthode non autorisée' });
-  }
+const app = express();
+const PORT = process.env.PORT || 3000;
 
+// Middleware indispensable pour parser le JSON envoyé en POST
+app.use(express.json());
+
+// 1. Route GET : Mode web / vérification
+app.get('/', (req, res) => {
+  return res.send('Hello World');
+});
+
+// 2. Route POST : Logique de capture PDF (strictement intacte)
+app.post('/', async (req, res) => {
   const { url } = req.body || {};
   if (!url) {
     return res.status(400).json({ error: 'URL manquante' });
@@ -41,7 +50,7 @@ module.exports = async (req, res) => {
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdf.length);
-    // Utiliser .end(buffer) pour éviter que Vercel n'essaie de parser le binaire
+    // Utiliser .end(buffer) pour éviter que Vercel/Express n'essaie de parser le binaire
     return res.end(pdf);
 
   } catch (error) {
@@ -50,4 +59,11 @@ module.exports = async (req, res) => {
   } finally {
     if (browser) await browser.close();
   }
-};
+});
+
+// Lancement du serveur
+app.listen(PORT, () => {
+  console.log(`Serveur démarré sur le port ${PORT}`);
+});
+
+module.exports = app;
