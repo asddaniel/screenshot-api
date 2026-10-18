@@ -88,12 +88,12 @@ function isAllowedTarget(value) {
 // Envoi indépendant : l'indisponibilité du collecteur ne doit pas
 // empêcher la génération du PDF.
 async function sendLogs(payload) {
-  if (!LOG_API_URL) {
-    console.warn(
-      '[LOG COLLECTOR] LOG_API_URL non configurée ; logs conservés uniquement en mémoire pendant la requête.'
-    );
-    return { sent: false, reason: 'LOG_API_URL non configurée' };
-  }
+  // if (!LOG_API_URL) {
+  //   console.warn(
+  //     '[LOG COLLECTOR] LOG_API_URL non configurée ; logs conservés uniquement en mémoire pendant la requête.'
+  //   );
+  //   return { sent: false, reason: 'LOG_API_URL non configurée' };
+  // }
 
   let endpoint;
 
