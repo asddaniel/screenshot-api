@@ -26,61 +26,77 @@ app.post('/', async (req, res) => {
     browser = await puppeteer.launch({
       args: [
         ...chromium.args,
+        '--ignore-certificate-errors', // Ignore les faux certificats SSL locaux
+        '--allow-running-insecure-content',
+        '--disable-web-security', // Évite les blocages CORS entre Vite et l'app
         '--disable-gpu',
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--font-render-hinting=none',
       ],
-      defaultViewport: { width: 1200, height: 800 },
+      defaultViewport: { width: 1280, height: 900 },
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     });
 
     const page = await browser.newPage();
 
-    // 🔍 Capture des logs et erreurs de rendu dans la console Node
-    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
-    page.on('pageerror', err => console.error('PAGE ERROR:', err.message));
+    // 1. ESPIONNAGE DES ERREURS : Affichera les erreurs de compilation/scripts dans votre terminal Node
+    page.on('console', msg => console.log('💬 [BROWSER CONSOLE]:', msg.type(), msg.text()));
+    page.on('pageerror', err => console.error('💥 [JS EXCEPTION]:', err.message));
+    page.on('requestfailed', request => {
+      console.error(`🚨 [RESSOURCE ÉCHOUÉE]: ${request.url()} - ${request.failure()?.errorText}`);
+    });
 
-    // 1. Navigation en mode écran standard pour laisser React & Mermaid s'hydrater
-    await page.goto(url, {
-      waitUntil: 'networkidle0',
+    // 2. Navigation vers l'application
+    const response = await page.goto(url, {
+      waitUntil: 'networkidle2', // plus stable que networkidle0 avec Inertia et Vite
       timeout: 30000,
     });
 
-    // 2. Attente que les polices soient prêtes
-    await page.evaluateHandle('document.fonts.ready');
+    console.log(`📡 HTTP Status: ${response.status()}`);
 
-    // 3. Attente du flag injecté par le composant React
-    await page.waitForFunction(() => window.__PDF_READY__ === true, {
-      timeout: 25000,
+    // 3. VÉRIFICATION DU MONTAGE DE REACT DANS LE DOM
+    const htmlDebug = await page.evaluate(() => {
+      const appEl = document.getElementById('app');
+      return {
+        appExists: !!appEl,
+        appHasContent: appEl ? appEl.innerHTML.trim().length > 0 : false,
+        bodyHtmlSnippet: document.body.innerHTML.substring(0, 300),
+      };
     });
 
-    // 4. Génération du PDF (page.pdf bascule automatiquement sur le média print)
+    console.log('🧐 État du DOM Inertia :', htmlDebug);
+
+    if (!htmlDebug.appHasContent) {
+      console.warn('⚠️ ALERTE : Le conteneur #app est totalement VIDE. React ne s\'est pas exécuté !');
+    }
+
+    // 4. Attente explicite du conteneur rendu par Inertia
+    await page.waitForSelector('#app > *', { timeout: 10000 }).catch(() => {
+      console.warn('⚠️ Le composant React n\'a pas pu monter dans #app.');
+    });
+
+    // 5. Attente du drapeau spécifique si présent
+    await page.waitForFunction(() => window.__PDF_READY__ === true, {
+      timeout: 10000,
+    }).catch(() => console.log('ℹ️ window.__PDF_READY__ non détecté ou expiré, capture directe...'));
+
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      preferCSSPageSize: true, // Priorité aux directives @page du CSS
-      margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm',
-      },
+      preferCSSPageSize: true,
     });
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Length', pdf.length);
     return res.end(pdf);
 
   } catch (error) {
-    console.error('Erreur Puppeteer:', error);
+    console.error('Erreur Serveur:', error);
     return res.status(500).json({ error: error.message });
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
   }
 });
 
