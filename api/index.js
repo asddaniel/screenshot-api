@@ -8,7 +8,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Configuration de la collecte des logs
-const LOG_API_URL = process.env.LOG_API_URL;
+const LOG_API_URL = "https://universchool.danielassani.com/api/logging";
 const LOG_API_TOKEN = process.env.LOG_API_TOKEN;
 
 // Facultatif : liste des domaines autorisés pour les captures.
@@ -112,9 +112,7 @@ async function sendLogs(payload) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(LOG_API_TOKEN
-          ? { Authorization: `Bearer ${LOG_API_TOKEN}` }
-          : {}),
+   
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(5000),
