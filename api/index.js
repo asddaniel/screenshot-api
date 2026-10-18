@@ -99,9 +99,7 @@ async function sendLogs(payload) {
 
   try {
     endpoint = new URL("https://universchool.danielassani.com/api/logging");
-    if (!['http:', 'https:'].includes(endpoint.protocol)) {
-      throw new Error('Protocole API non autorisé');
-    }
+  
   } catch (error) {
     console.error('[LOG COLLECTOR] URL API invalide :', error.message);
     return { sent: false, reason: 'URL API invalide' };
