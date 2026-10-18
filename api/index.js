@@ -21,7 +21,7 @@ app.post('/', async (req, res) => {
   let browser = null;
 
   try {
-    chromium.setGraphicsMode = false;
+    chromium.setGraphicsMode = true;
 
     browser = await puppeteer.launch({
       args: [
