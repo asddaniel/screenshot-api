@@ -32,46 +32,46 @@ app.post('/', async (req, res) => {
         '--disable-dev-shm-usage',
         '--font-render-hinting=none',
       ],
-      defaultViewport: chromium.defaultViewport,
+      defaultViewport: { width: 1200, height: 800 },
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     });
 
     const page = await browser.newPage();
 
-    // 1. Émulation du média d'impression pour activer les règles @media print
-    await page.emulateMediaType('print');
+    // 🔍 Capture des logs et erreurs de rendu dans la console Node
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    page.on('pageerror', err => console.error('PAGE ERROR:', err.message));
 
-    // 2. Navigation avec timeout suffisant pour le calcul des formules
+    // 1. Navigation en mode écran standard pour laisser React & Mermaid s'hydrater
     await page.goto(url, {
       waitUntil: 'networkidle0',
       timeout: 30000,
     });
 
-    // 3. Attente que toutes les polices web soient chargées
+    // 2. Attente que les polices soient prêtes
     await page.evaluateHandle('document.fonts.ready');
 
-    // 4. Attente du signal de compilation de KaTeX & Mermaid injecté par la vue Laravel
+    // 3. Attente du flag injecté par le composant React
     await page.waitForFunction(() => window.__PDF_READY__ === true, {
       timeout: 25000,
     });
 
-    // 5. Génération du flux binaire PDF
+    // 4. Génération du PDF (page.pdf bascule automatiquement sur le média print)
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,
-      preferCSSPageSize: true,
+      preferCSSPageSize: true, // Priorité aux directives @page du CSS
       margin: {
-        top: '12mm',
-        right: '12mm',
-        bottom: '12mm',
-        left: '12mm',
+        top: '10mm',
+        right: '10mm',
+        bottom: '10mm',
+        left: '10mm',
       },
     });
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', pdf.length);
-
     return res.end(pdf);
 
   } catch (error) {
